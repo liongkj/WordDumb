@@ -62,11 +62,17 @@ def install_deps(pkg: str, notif: Any) -> None:
         pip_install("lxml", dep_versions["lxml"], notif=notif, index_url=china_index)
     elif pkg == "wsd":
         pip_install(
-            "transformers", dep_versions["transformers"], notif=notif, index_url=china_index
+            "transformers",
+            dep_versions["transformers"],
+            notif=notif,
+            index_url=china_index,
         )
         if prefs["torch_compute_platform"] != "cpu":
             pip_install(
-                "accelerate", dep_versions["accelerate"], notif=notif, index_url=china_index
+                "accelerate",
+                dep_versions["accelerate"],
+                notif=notif,
+                index_url=china_index,
             )
         pytorch_extra_index = None
         if iswindows:
@@ -74,9 +80,13 @@ def install_deps(pkg: str, notif: Any) -> None:
                 prefs["torch_compute_platform"]
             )
         elif islinux:
-            pytorch_extra_index = PYTORCH_LINUX_PLATFORMS.get(prefs["torch_compute_platform"])
+            pytorch_extra_index = PYTORCH_LINUX_PLATFORMS.get(
+                prefs["torch_compute_platform"]
+            )
         elif ismacos:
-            pytorch_extra_index = PYTORCH_MACOS_PLATFORMS.get(prefs["torch_compute_platform"])
+            pytorch_extra_index = PYTORCH_MACOS_PLATFORMS.get(
+                prefs["torch_compute_platform"]
+            )
         pip_install(
             "torch",
             dep_versions["torch"],
