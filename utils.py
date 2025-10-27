@@ -32,6 +32,7 @@ class Prefs(TypedDict):
     test_wsd: bool
     torch_compute_platform: str
     custom_entity_only: bool
+    use_china_proxy: bool
 
 
 def load_plugin_json(plugin_path: Path, filepath: str) -> Any:

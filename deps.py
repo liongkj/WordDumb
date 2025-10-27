@@ -21,6 +21,7 @@ from .utils import (
 
 PY_PATH = ""
 LIBS_PATH = Path()
+CHINA_PYPI_MIRROR = "https://pypi.tuna.tsinghua.edu.cn/simple"
 # https://pytorch.org/get-started/locally
 PYTORCH_LINUX_PLATFORMS = {
     "cpu": "https://download.pytorch.org/whl/cpu",
@@ -35,6 +36,11 @@ PYTORCH_WINDOWS_PLATFORMS = {
     "cuda12.8": "https://download.pytorch.org/whl/cu128",
     "cuda13.0": "https://download.pytorch.org/whl/cu130",
 }
+# macOS uses standard PyPI for both Intel and Apple Silicon
+PYTORCH_MACOS_PLATFORMS = {
+    "cpu": None,  # Standard PyPI, works for both Intel and Apple Silicon
+    "mps": None,  # Metal Performance Shaders for Apple Silicon GPU acceleration
+}
 
 
 def install_deps(pkg: str, notif: Any) -> None:
@@ -48,32 +54,49 @@ def install_deps(pkg: str, notif: Any) -> None:
             for old_libs_path in LIBS_PATH.parent.glob("worddumb-libs-py*"):
                 shutil.rmtree(old_libs_path)
 
+    from .config import prefs
+
+    china_index = CHINA_PYPI_MIRROR if prefs["use_china_proxy"] else None
     dep_versions = load_plugin_json(plugin_path, "data/deps.json")
     if pkg == "lxml":
-        pip_install("lxml", dep_versions["lxml"], notif=notif)
+        pip_install("lxml", dep_versions["lxml"], notif=notif, index_url=china_index)
     elif pkg == "wsd":
-        from .config import prefs
-
-        pip_install("transformers", dep_versions["transformers"], notif=notif)
+        pip_install(
+            "transformers", dep_versions["transformers"], notif=notif, index_url=china_index
+        )
         if prefs["torch_compute_platform"] != "cpu":
-            pip_install("accelerate", dep_versions["accelerate"], notif=notif)
-        index_url = None
+            pip_install(
+                "accelerate", dep_versions["accelerate"], notif=notif, index_url=china_index
+            )
+        pytorch_extra_index = None
         if iswindows:
-            index_url = PYTORCH_WINDOWS_PLATFORMS.get(prefs["torch_compute_platform"])
+            pytorch_extra_index = PYTORCH_WINDOWS_PLATFORMS.get(
+                prefs["torch_compute_platform"]
+            )
         elif islinux:
-            index_url = PYTORCH_LINUX_PLATFORMS.get(prefs["torch_compute_platform"])
-        pip_install("torch", dep_versions["torch"], extra_index=index_url, notif=notif)
+            pytorch_extra_index = PYTORCH_LINUX_PLATFORMS.get(prefs["torch_compute_platform"])
+        elif ismacos:
+            pytorch_extra_index = PYTORCH_MACOS_PLATFORMS.get(prefs["torch_compute_platform"])
+        pip_install(
+            "torch",
+            dep_versions["torch"],
+            extra_index=pytorch_extra_index,
+            notif=notif,
+            index_url=china_index,
+        )
     else:
         # Install X-Ray dependencies
-        pip_install("rapidfuzz", dep_versions["rapidfuzz"], notif=notif)
-        pip_install("spacy", dep_versions["spacy"], notif=notif)
+        pip_install(
+            "rapidfuzz", dep_versions["rapidfuzz"], notif=notif, index_url=china_index
+        )
+        pip_install("spacy", dep_versions["spacy"], notif=notif, index_url=china_index)
         if pkg != "":
             model_version = get_spacy_model_version(pkg, dep_versions)
             url = (
                 "https://github.com/explosion/spacy-models/releases/download/"
                 f"{pkg}-{model_version}/{pkg}-{model_version}-py3-none-any.whl"
             )
-            pip_install(pkg, model_version, url=url, notif=notif)
+            pip_install(pkg, model_version, url=url, notif=notif, index_url=china_index)
 
 
 def which_python() -> tuple[str, str]:
@@ -120,6 +143,7 @@ def pip_install(
     extra_index: str | None = None,
     no_deps: bool = False,
     notif: Any = None,
+    index_url: str | None = None,
 ) -> None:
     pattern = f"{pkg.replace('-', '_')}-{pkg_version}*"
     if pkg == "torch" and extra_index:
@@ -151,6 +175,8 @@ def pip_install(
         else:
             args.append(pkg)
 
+        if index_url is not None:
+            args.extend(["--index-url", index_url])
         if extra_index is not None:
             args.extend(["--extra-index-url", extra_index])
 

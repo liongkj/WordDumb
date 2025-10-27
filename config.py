@@ -4,7 +4,7 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from calibre.constants import isfrozen, islinux, iswindows
+from calibre.constants import isfrozen, islinux, ismacos, iswindows
 from calibre.gui2 import Dispatcher
 from calibre.gui2.threaded_jobs import ThreadedJob
 from calibre.utils.config import JSONConfig
@@ -59,6 +59,7 @@ prefs.defaults["show_change_kindle_ww_lang_warning"] = True
 prefs.defaults["test_wsd"] = True
 prefs.defaults["torch_compute_platform"] = "cpu"
 prefs.defaults["custom_entity_only"] = False
+prefs.defaults["use_china_proxy"] = False
 for code in load_languages_data(get_plugin_path(), False).keys():
     prefs.defaults[f"{code}_wiktionary_difficulty_limit"] = 5
 
@@ -148,15 +149,21 @@ class ConfigWidget(QWidget):
         self.zh_wiki_box.setCurrentText(zh_variants[prefs["zh_wiki_variant"]])
         form_layout.addRow(_("Chinese Wikipedia variant"), self.zh_wiki_box)
 
-        if islinux or iswindows:
+        if islinux or iswindows or ismacos:
             compute_platform_lb = QLabel(_("PyTorch compute platform"))
-            compute_platforms = {
-                "cpu": "CPU",
-                "cuda13.0": "CUDA 13.0",
-                "cuda12.8": "CUDA 12.8",
-                "cuda12.6": "CUDA 12.6",
-                "rocm6.4": "ROCm 6.4",
-            }
+            if ismacos:
+                compute_platforms = {
+                    "cpu": "CPU",
+                    "mps": "MPS (Apple Silicon GPU)",
+                }
+            else:
+                compute_platforms = {
+                    "cpu": "CPU",
+                    "cuda13.0": "CUDA 13.0",
+                    "cuda12.8": "CUDA 12.8",
+                    "cuda12.6": "CUDA 12.6",
+                    "rocm6.4": "ROCm 6.4",
+                }
             self.compute_platform_box = QComboBox()
             for version, text in compute_platforms.items():
                 if iswindows and text.startswith("ROCm"):
@@ -181,6 +188,13 @@ class ConfigWidget(QWidget):
         self.custom_entity_only = QCheckBox(_("Only use customized X-Ray entities"))
         self.custom_entity_only.setChecked(prefs["custom_entity_only"])
         vl.addWidget(self.custom_entity_only)
+
+        self.use_china_proxy_box = QCheckBox(_("Use China PyPI mirror (Tsinghua)"))
+        self.use_china_proxy_box.setToolTip(
+            _("Use https://pypi.tuna.tsinghua.edu.cn/simple for pip installations")
+        )
+        self.use_china_proxy_box.setChecked(prefs["use_china_proxy"])
+        vl.addWidget(self.use_china_proxy_box)
 
         delete_file_button = QPushButton(_("Delete downloaded files"))
         delete_file_button.clicked.connect(self.open_delete_files_dialog)
@@ -211,7 +225,8 @@ class ConfigWidget(QWidget):
         prefs["add_locator_map"] = self.locator_map_box.isChecked()
         prefs["minimal_x_ray_count"] = self.minimal_x_ray_count.value()
         prefs["custom_entity_only"] = self.custom_entity_only.isChecked()
-        if islinux or iswindows:
+        prefs["use_china_proxy"] = self.use_china_proxy_box.isChecked()
+        if islinux or iswindows or ismacos:
             prefs["torch_compute_platform"] = self.compute_platform_box.currentData()
 
     def open_format_order_dialog(self):
